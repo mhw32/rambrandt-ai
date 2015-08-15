@@ -1,0 +1,5 @@
+1) Pull a lot of images of modern art from some place. 
+2) Cast features on top of it a.k.a. 1x1 pixel blocks, 2x2 blocks, 3x3, ... 1xn blocks, nx1 blocks, nxn, etc.
+3) Use a naive bayes or whatever to cast a language model on top of these features. 
+4) For each pixel at time t-1(n), where an image is reshaped into a single long vector, predict t(n) with some probability.
+5) To generate an art piece. Sample from all spaces. 
