@@ -153,21 +153,21 @@ def generate_1d_T_mat(n):
 
 # Create a wrapper function to the let user pick
 # if they want 2-D filtering or 1-D filtering. 
-def generate_T_mat(n, dim):
+def generate_T_mat(n, dim, *args):
 	# Hard enforce edge values.
 	if dim > 2: dim = 2 
 	if dim == 0:
-		return generate_0d_T_mat(n)
+		return generate_0d_T_mat(n, *args)
 	elif dim == 1:
-		return generate_1d_T_mat(n)
+		return generate_1d_T_mat(n, *args)
 	else: # dim == 2
-		return generate_2d_T_mat(n)
+		return generate_2d_T_mat(n, *args)
 
 # This is a hardcoded T matrix, in the sense 
 # that we pick the diagonal values and set 
 # all others to be such that the full "row"
 # sums to 1. Useful for straight cutoffs.
-def generate_0d_T_mat(n, bias=0.80): 
+def generate_0d_T_mat(n, bias=0.98): 
 	T = np.zeros((n, n))
 	fill = (1 - bias) / (n - 1)
 	for i in range(n):
