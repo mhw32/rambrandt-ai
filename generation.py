@@ -6,8 +6,6 @@ import matplotlib.pyplot as plt
 # ------------------------
 sys.path.append('../')
 import lmixture, hmm
-import cross_validation as cv2
-import z_scored_words as zs
 
 # We are assuming that the images are in the 
 # ../data folder.
@@ -124,8 +122,8 @@ def expand(arr, size):
   return np.array([[arr for i in range(size)] for j in range(size)])
 
 def magnify(image, factor):
-  m = np.array([np.concatenate([expand(image[row][col], factor) for col in range(image.shape[1])]) for row in range(image.shape[0])])
-  return m.transpose((1, 0, 2))
+    m = np.array([np.concatenate([expand(image[row][col], factor) for col in range(image.shape[1])]) for row in range(image.shape[0])])
+    return np.concatenate(m, axis=1).transpose((1, 0, 2))
 
 # Run this on DEFAULT. Some settings should be changed.
 if __name__ == '__main__':

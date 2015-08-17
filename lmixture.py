@@ -20,7 +20,6 @@ from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
 from sklearn.ensemble import ExtraTreesClassifier
 # For sampling (backwards algorithms)
 import hmm
-import z_scored_words as zs
 
 # ----------------------------------------------------------------------
 
@@ -70,14 +69,6 @@ def regroup_by_patient(I, *args):
 	# Now we can return them as list
 	# Casting np.arrays on this will make numpy angry
 	return data
-
-def make_alphabet(A):
-	X = copy.deepcopy(A) # important
-	indices = X.shape[1]
-	# First make each row discrete
-	for i in range(indices):
-		X[:, i] = zs.discretize(X[:, i])
-	return zs.alphabetize(X)
 
 def make_image_alphabet(A):
 	return A
