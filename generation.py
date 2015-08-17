@@ -119,9 +119,17 @@ def pad_sample(sample):
   seed = npr.randint(0, 255, 3)
   return np.array([seed, sample])
 
+# For viewing purposes, we might want to maximize each row!
+def expand(arr, size):
+  return np.array([[arr for i in range(size)] for j in range(size)])
+
+def magnify(image, factor):
+  m = np.array([np.concatenate([expand(image[row][col], factor) for col in range(image.shape[1])]) for row in range(image.shape[0])])
+  return m.transpose((1, 0, 2))
+
 # Run this on DEFAULT. Some settings should be changed.
 if __name__ == '__main__':
-  
+
   paths = fetch_paths(30)
   datum = np.array([np.asarray(Image.open(i)) for i in paths])
   # Pull out different types of samples from each image.
@@ -168,6 +176,7 @@ if __name__ == '__main__':
   # Do the image generation now. 
   returned_values = [] # <-- save it here.
   seed = gen_seed()
+  # Hardcoded ytest and Itest --> they don't matter for this.
   Xtest, ytest, Itest = np.array(seed), np.zeros(2), np.ones(2)
   probs = gen_value(Xtest, ytest, Itest, forestMat, T, priorProbs)
   new_sample = np.array([sample(pr, npr.rand()) for pr in probs])
