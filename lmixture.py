@@ -20,11 +20,9 @@ from sklearn.naive_bayes import MultinomialNB, BernoulliNB, GaussianNB
 from sklearn.ensemble import ExtraTreesClassifier
 # For sampling (backwards algorithms)
 import hmm, dirichlet
-import test_scripts as testing
 sys.path.append('../')
 import z_scored_words as zs
 sys.path.append('../neural-nets/')
-from lstm_in_mlm import *
 
 # ----------------------------------------------------------------------
 class MixtureParams(object):
@@ -422,69 +420,6 @@ def build_lmixture(N, method='random-forest'):
       for d in xrange(F):
         bayes = bayesMat[lm][d]
         logproba = np.log(reverse_bag(bayes.classes_, bayes.predict_proba(inputs)))
-        probArr[:, lm] += np.array([p[o] for p,o in zip(logproba, outputs[:, d])])
-    # Before continuing, I must sort it.
-    sortKey = np.argsort(probId)
-    probId  = probId[sortKey]
-    probArr = probArr[sortKey]
-    # If we have a decay object, use it (the iteration is updated outside)
-    if decay is not None: decay.apply(probArr) # in-place changing
-    # Save a copy of the probDict since we need to return it.
-    saveArr = probArr + prior
-    # Do a little prepping for the HMM run.
-    flatten_models = np.concatenate(models)[probId]
-    # Initialize a hidden Markov model to calculate smoothed posterior.
-    hmm_forward, hmm_backward = hmm.build_hmm(N, TMat)
-    forward_struct = hmm_forward(probArr, prior, temper)
-    resampled, backward_struct = hmm_backward(forward_struct, flatten_models)
-    # Calculate a total summed likelihood (finding the maximum theta likelihood throughout all lm's for each data vec).
-    post_summed_log_likelihood = get_summed_likelihood(probArr, resampled)
-    return resampled, probId, prior, saveArr, post_summed_log_likelihood
-
-# ---------------------------------------------------------------------------
-  # ~~~~~~~ EXPERIMENTAL SECTION ~~~~~~~~~~~
-  # 
-  # Long Short Term Memory Forward Pass
-  # -----------------------------------
-  # Another alternative to the Dirichlet model. This is not recommended for use because it's training process is very very slow. But it might be interesting to try. This is highly experimental. Proceed at your own caution.
-  def train_lstm(inputs, outputs):
-    V = params.vocabulary
-    lstm = lstm_in_mlm(F, 10, len(V), 0.01, 5, V)
-    lstm.fit(neural_inputs, neural_outputs)
-    return lstm
-
-  def forward_neuralize(data):
-    F = params.num_features
-    neuralMat = [[train_lstm(data[lm][:, 0], data[lm][:, 1, d]) for d in xrange(F)] for lm in xrange(N)]
-    return neuralMat
-
-  # LSTM Backward Pass
-  # ---------------------------
-  def backward_neuralize(data, places, models, neuralMat, TMat, priorMat=None, decay=None, temper=[1,1]):
-    def get_log_prior():
-      # Add counts to the beta distribution from new layer
-      betas = np.ones(N) / float(N)
-      model_type, model_count = np.unique(np.concatenate(models), return_counts=True)
-      for i in range(len(model_type)):
-        betas[model_type[i]] += model_count[i]
-      parameters = np.log(npr.dirichlet(betas))
-      return parameters
-
-    F = params.num_features
-    V = params.vocabulary
-    # Let's calculate the priors. This is the same as in the dirichlet model.
-    prior = get_log_prior() if priorMat is None else priorMat
-    # Setup, we want to go through all the keys together
-    total_data, total_places = np.concatenate(data), np.concatenate(places)
-    inputs, outputs = total_data[:, 0], total_data[:, 1]
-    currPlaces, nextPlaces = total_places[:, 0], total_places[:, 1]
-    # Calculations for p(y_t | x_t)
-    probId, probArr = nextPlaces, np.zeros((nextPlaces.shape[0], N))
-    # Loop through the forests and calculate probabilities.
-    for lm in xrange(N):
-      for d in xrange(F):
-        neural = neuralMat[lm][d]
-        logproba = neural.predict(inputs)
         probArr[:, lm] += np.array([p[o] for p,o in zip(logproba, outputs[:, d])])
     # Before continuing, I must sort it.
     sortKey = np.argsort(probId)
