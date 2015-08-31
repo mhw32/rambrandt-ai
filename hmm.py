@@ -36,52 +36,51 @@ def build_hmm(S, T):
 		# likelihood --> p(y_t, x_t) [ This has to be calculated elsewhere. ]
 		# prior --> p(x_0) [ This must also be provided. ]
 		# Both of the provided matrices are assumed to be in log space.
-		forward = {}
-		keys = sorted(likelihoods.keys())
-		# Run the first iteration separately
-		p1 = likelihoods[keys[0]]
-		# Calculate log likelihood. This may be tempered.
-		p2 = np.log(np.dot(params.T**beta, np.exp(prior)**alpha))
-		forward[keys[0]] = lognormalize(p1 + p2)
-
+		forward = []
+		# Run the first iteration separately (in order to customize prior).
+		p1 = likelihoods[0]
+		p2 = np.log(np.dot(T**beta, np.exp(prior)**alpha))
+		forward.append(lognormalize(p1 + p2))
 		# Run the next iterations together
-		lastp = forward[keys[0]] # Keep track of the last 
-		curP = keys[1:] # Remove first iter
-		for curT in curP: # Ignore the 1st iteration
-			p1 = likelihoods[curT]
-			p2 = np.log(np.dot(params.T, np.exp(lastp)))
-			# Save the dictionary + save as counter 
-			forward[curT] = lastp = lognormalize(p1 + p2)
-		return forward
+		lastp = forward[0] # Track the previous item
+		rest_of_likelihoods = likelihoods[1:]
+		for p1 in rest_of_likelihoods: # Ignore the 1st iteration
+			p2 = np.log(np.dot(T, np.exp(lastp)))
+			value = lognormalize(p1 + p2)
+			forward.append(value)
+			# Update the tracked item
+			lastp = value
+		return np.array(forward)
 
 	# p(x_t | y1, ..., y_t, x_t+1) ~ p(x_t+1 | x_t) p(x_t | y_1, ..., y_t)
 	# states - spread of states over data (in our case = language models over patients)
 	def hmm_backward(forward, states):
-		# forward.keys() should already be sorted.
-		keys = sorted(forward.keys())[::-1] # reverse
-		curP = np.array(keys[1:])
-		nexP = curP + 1 
-
-		lastp = keys[0]
-		resample = {} # Save the samples
-		backward = {}
+		reverse, rstates = forward[::-1], states[::-1]
+		times = np.arange(forward.shape[0])
+		# Save the samples
+		resample, backward = [], []
 		# Do the first iteration first
-		sampled = smart_sampling(np.array([forward[lastp]]))
-		resample[lastp] = sampled[0]
-		backward[lastp] = forward[lastp]
+		first = reverse[times[0]]
+		sampled = smart_sampling(np.array([first]))
+		resample.append(sampled[0])
+		backward.append(first)
 		# Propogate the sampling. Consider vectorizing this operation.
-		for curT, nexT in zip(curP, nexP):
-			p1 = np.log(params.T[states[curT]]) # p(x_t+1 | x_t)
-			p2 = forward[curT] # already in logspace
+		curP = np.array(times[1:])
+		for curT in curP:
+			p1 = np.log(T[rstates[curT]]) # p(x_t+1 | x_t)
+			p2 = reverse[curT] # already in logspace
 			result = lognormalize(p1 + p2)
 			sampled = smart_sampling(np.array([result]))
-			resample[curT] = sampled[0]
-			backward[curT] = result
+			resample.append(sampled[0])
+			backward.append(result)
+		# We did everything backwards so we have to flip.
+		resample, backward = np.array(resample)[::-1], np.array(backward)[::-1]
 		return resample, backward
 
 	return hmm_forward, hmm_backward
 		
-# Regular uniform sampling.
+# Regular uniform sampling. 
+# This is faster than numpy. 
 def sample(v, r):
 	rolling = 0
 	for i in xrange(len(v)):
@@ -107,30 +106,30 @@ def lognormalize(x):
 	return x - a
 
 def normalize(A):
-    return A / float(np.sum(A))
+	return A / float(np.sum(A))
 
 # 2 dimensional pdf of gaussian distribution
 def gaussian_2d(muX, muY, sigma, x, y):
-    return 1 / float(2*np.pi*sigma**2) * np.exp(-((x-muX)**2 + (y-muY)**2) / 2*sigma**2)
+	return 1 / float(2*np.pi*sigma**2) * np.exp(-((x-muX)**2 + (y-muY)**2) / 2*sigma**2)
 
 # Given some means and some coordinates, generate a filter
 # Note that this returns a MATRIX.
 def gaussian_2d_filter(muX, muY, minX, minY, maxX, maxY, sigma=1):
-    F = np.zeros((maxX-minX, maxY-minY))
-    for i in range(minX, maxX):
-        for j in range(minY, maxY):
-            F[i][j] = gaussian_2d(muX, muY, sigma, i, j)
-    return F
+	F = np.zeros((maxX-minX, maxY-minY))
+	for i in range(minX, maxX):
+		for j in range(minY, maxY):
+			F[i][j] = gaussian_2d(muX, muY, sigma, i, j)
+	return F
 
 def generate_2d_T_mat(n):
-    T = np.zeros((n, n))
-    # For each entry in the diagonal, generate a 2D gaussian
-    for i in range(n):
-        layer = gaussian_2d_filter(i, i, 0, 0, n, n)
-        T = T + layer
-    for i in range(n):
-        T[i] = normalize(T[i])
-    return T.T # transpose to sum to 1 column-wise
+	T = np.zeros((n, n))
+	# For each entry in the diagonal, generate a 2D gaussian
+	for i in range(n):
+		layer = gaussian_2d_filter(i, i, 0, 0, n, n)
+		T = T + layer
+	for i in range(n):
+		T[i] = normalize(T[i])
+	return T.T # transpose to sum to 1 column-wise
 
 # 1 dimension pdf of gaussian distribution
 def gaussian_1d(muX, sigma, x):
@@ -157,17 +156,17 @@ def generate_T_mat(n, dim, *args):
 	# Hard enforce edge values.
 	if dim > 2: dim = 2 
 	if dim == 0:
-		return generate_0d_T_mat(n, *args)
+		return generate_0d_T_mat(n, args[0])
 	elif dim == 1:
-		return generate_1d_T_mat(n, *args)
+		return generate_1d_T_mat(n)
 	else: # dim == 2
-		return generate_2d_T_mat(n, *args)
+		return generate_2d_T_mat(n)
 
 # This is a hardcoded T matrix, in the sense 
 # that we pick the diagonal values and set 
 # all others to be such that the full "row"
 # sums to 1. Useful for straight cutoffs.
-def generate_0d_T_mat(n, bias=0.98): 
+def generate_0d_T_mat(n, bias=0.80): 
 	T = np.zeros((n, n))
 	fill = (1 - bias) / (n - 1)
 	for i in range(n):

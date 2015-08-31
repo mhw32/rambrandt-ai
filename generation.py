@@ -150,25 +150,23 @@ if __name__ == '__main__':
   X = X[:, 0:dimensions-1]
   # Set up parameters for mixture of language models.
   N = 4 
-  F = dimensions - 1
-  V = np.array(range(0, 256))
   R = 'random-forest'
   # Use the language models.
-  preprocess_fun, setup_fun, forward_fun, backward_fun = lmixture.build_lmixture(N, F, V, R)
+  preprocess_fun, setup_fun, forward_fun, backward_fun, update_fun = lmixture.build_lmixture(N, R)
   # Generate a transition matrix for HMM
-  T = hmm.generate_T_mat(N, 0, 0.8)
+  T = hmm.generate_T_mat(N, 0, 0.99)
   # Run 25 iterations:
   train_inputs, train_targets, train_models, train_indexes, train_raw = preprocess_fun(X, y, I, clusterInit='random')
-  tupleMat, dataMat, placeMat = setup_fun(train_inputs, train_indexes, train_models)
-  forestMat = forward_fun(tupleMat)
-  resample, priorProbs, saveProbs, logsum = backward_fun(dataMat, placeMat, train_models, forestMat, T)
-  train_models = lmixture.update(train_indexes, train_models, resample)
+  dataMat, placeMat = setup_fun(train_inputs, train_indexes, train_models)
+  classMat = forward_fun(dataMat) if R != 'dirichlet' else forward_fun(dataMat, placeMat)
+  resample, resampleId, priorProbs, saveProbs, logsum = backward_fun(dataMat, placeMat, train_models, classMat, T, None, decayObj, tempering)
+  train_models = update_fun(train_indexes, train_models, resample, resampleId)
   currIter = 2 
   while (currIter < 25):
-    tupleMat, dataMat, placeMat = setup_fun(train_inputs, train_indexes, train_models)
-    forestMat = forward_fun(tupleMat)
-    resample, priorProbs, saveProbs, logsum = backward_fun(dataMat, placeMat, train_models, forestMat, T)
-    train_models = lmixture.update(train_indexes, train_models, resample)
+    dataMat, placeMat = setup_fun(train_inputs, train_indexes, train_models)
+    classMat = forward_fun(dataMat) if R != 'dirichlet' else forward_fun(dataMat, placeMat)
+    resample, resampleId, priorProbs, saveProbs, logsum = backward_fun(dataMat, placeMat, train_models, classMat, T, None, decayObj, tempering)
+    train_models = update_fun(train_indexes, train_models, resample, resampleId)
     print("Iteration: %d." % currIter)
     currIter += 1
   # Do the image generation now. 
